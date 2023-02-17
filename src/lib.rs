@@ -30,9 +30,9 @@ static PROVIDER: OnceCell<Arc<Provider<RetryClient<Http>>>> = OnceCell::new();
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReputationNoProof {
-    key: String,
-    reputation_amount: String,
-    value: String,
+    pub key: String,
+    pub reputation_amount: String,
+    pub value: String,
 }
 
 #[derive(Debug, Error)]
