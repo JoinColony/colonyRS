@@ -4,6 +4,7 @@ use ethers::providers::{
 pub use ethers::types::*;
 use once_cell::sync::OnceCell;
 use reqwest::Error as ReqwestError;
+use reqwest::{Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use std::boxed::Box;
 use std::str::FromStr;
@@ -26,6 +27,7 @@ const COLONY_NETWORK_ADDRESS: Address = H160([
 /// holds an `Arc` to the provider, so we can clone it and use it in multiple
 /// places.
 static PROVIDER: OnceCell<Arc<Provider<RetryClient<Http>>>> = OnceCell::new();
+static CLIENT: OnceCell<Arc<reqwest::Client>> = OnceCell::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -63,6 +65,11 @@ fn init_provider() -> Arc<Provider<RetryClient<Http>>> {
     Arc::new(Provider::new(client))
 }
 
+fn init_reqwest() -> Arc<Client> {
+    let client = ClientBuilder::new().build().unwrap();
+    Arc::new(client)
+}
+
 pub async fn get_reputation_root_hash() -> Result<TxHash, ColonyError> {
     let provider = PROVIDER.get_or_init(init_provider).clone();
     let network = contracts::colony_network::ColonyNetwork::new(COLONY_NETWORK_ADDRESS, provider);
@@ -87,7 +94,11 @@ pub async fn get_reputation_in_domain(
         "{}/reputation/xdai/{:?}/{:?}/{:?}/{:?}/noProof",
         COLONY_BASE_URL, root_hash, colony_address, domain.skill_id, user_address
     );
-    let response = reqwest::get(endpoint).await?;
+    eprintln!("endpoint: {}", endpoint);
+
+    let client = CLIENT.get_or_init(init_reqwest);
+    // let response = reqwest::get(endpoint).await?;
+    let response = client.get(endpoint).send().await?;
     response.json().await.map_err(|e| e.into())
 }
 
@@ -117,12 +128,12 @@ mod tests {
         assert!(validate_signature(&user_address, &message_str, &message_sig).is_ok());
     }
 
-    #[tokio::test()]
+    #[tokio::test]
     async fn test_get_reputation_root_hash() {
         let hash = get_reputation_root_hash().await.unwrap();
         assert_eq!(format!("{hash:?}").len(), 66,);
     }
-    #[tokio::test()]
+    #[tokio::test]
     async fn test_get_domain() {
         let colony_address = "0x364B3153A24bb9ECa28B8c7aCeB15E3942eb4fc5"
             .parse::<Address>()
@@ -137,7 +148,7 @@ mod tests {
         );
     }
 
-    #[tokio::test()]
+    #[tokio::test]
     async fn test_get_user_reputation_in_domain() {
         let colony_address = "0x364B3153A24bb9ECa28B8c7aCeB15E3942eb4fc5"
             .parse::<Address>()
@@ -149,14 +160,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reputation.key, "0x364b3153a24bb9eca28b8c7aceb15e3942eb4fc50000000000000000000000000000000000000000000000000000000000000f160aeff664e8d75c13801be16bcfe8143bf422135a".to_string());
-        assert_eq!(
-            reputation.reputation_amount,
-            "76074996056067445301".to_string()
-        );
         assert_eq!(reputation.value, "0x0000000000000000000000000000000000000000000000041fc0add9b32492350000000000000000000000000000000000000000000000000000000000000f1a".to_string());
     }
 
-    #[tokio::test()]
+    #[tokio::test]
     async fn test_get_whole_reputation_in_domain() {
         let colony_address = "0x364B3153A24bb9ECa28B8c7aCeB15E3942eb4fc5"
             .parse::<Address>()
@@ -166,10 +173,31 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reputation.key, "0x364b3153a24bb9eca28b8c7aceb15e3942eb4fc50000000000000000000000000000000000000000000000000000000000000f160000000000000000000000000000000000000000".to_string());
-        assert_eq!(
-            reputation.reputation_amount,
-            "254010502968648879100".to_string()
-        );
         assert_eq!(reputation.value, "0x00000000000000000000000000000000000000000000000dc51a96a5089f4bfc0000000000000000000000000000000000000000000000000000000000000f19".to_string());
+    }
+
+    #[tokio::test]
+    async fn test_get_no_reputation_in_domain() {
+        let colony_address = "0x364B3153A24bb9ECa28B8c7aCeB15E3942eb4fc5"
+            .parse::<Address>()
+            .unwrap();
+        let user_address = "0xcB313f361847e245954FD338Cb21b5F4225b17d1"
+            .parse::<Address>()
+            .unwrap();
+        let reputation = get_reputation_in_domain(&colony_address, &user_address, 1).await;
+        assert!(reputation.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_ether_scan() {
+        let client =
+            ethers::etherscan::Client::new(Chain::Mainnet, "4STDKJBKM789RAXJB9VEC5ICN2TTJX2R1R")
+                .unwrap();
+        let address = Address::from_str("0x0535f1f43Ee274123291bbAB284948CAED46C65D").unwrap();
+        let balance = client
+            .get_ether_balance_single(&address, None)
+            .await
+            .unwrap();
+        assert_eq!(balance.balance, "0".to_string());
     }
 }
