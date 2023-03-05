@@ -94,8 +94,6 @@ pub async fn get_reputation_in_domain(
         "{}/reputation/xdai/{:?}/{:?}/{:?}/{:?}/noProof",
         COLONY_BASE_URL, root_hash, colony_address, domain.skill_id, user_address
     );
-    eprintln!("endpoint: {}", endpoint);
-
     let client = CLIENT.get_or_init(init_reqwest);
     // let response = reqwest::get(endpoint).await?;
     let response = client.get(endpoint).send().await?;
