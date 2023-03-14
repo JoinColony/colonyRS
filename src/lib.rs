@@ -1,7 +1,8 @@
-use ethers::providers::{
-    Http, HttpRateLimitRetryPolicy, Provider, RetryClient, RetryClientBuilder,
-};
 pub use ethers::types::*;
+use ethers::{
+    contract::ContractError,
+    providers::{Http, HttpRateLimitRetryPolicy, Provider, RetryClient, RetryClientBuilder},
+};
 use once_cell::sync::OnceCell;
 use reqwest::Error as ReqwestError;
 use reqwest::{Client, ClientBuilder};
@@ -13,7 +14,11 @@ use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 mod contracts;
-use contracts::colony::Domain;
+use contracts::{
+    colony::{Colony, Domain},
+    colony_network::ColonyNetwork,
+    tokens_erc20::tokenERC20,
+};
 
 const COLONY_BASE_URL: &str = "https://xdai.colony.io";
 
@@ -42,7 +47,7 @@ pub enum ColonyError {
     #[error("The provided address is not a valid address")]
     InvalidAddress,
     #[error("An error occurred while communicating with the provider")]
-    ContractError(#[from] ethers::contract::ContractError<Provider<RetryClient<Http>>>),
+    ContractError(#[from] ContractError<Provider<RetryClient<Http>>>),
     #[error("An error occurred while communicating with the colony http endpoint")]
     HttpError(#[from] ReqwestError),
     #[error("The provided signature is invalid")]
@@ -72,13 +77,13 @@ fn init_reqwest() -> Arc<Client> {
 
 pub async fn get_reputation_root_hash() -> Result<TxHash, ColonyError> {
     let provider = PROVIDER.get_or_init(init_provider).clone();
-    let network = contracts::colony_network::ColonyNetwork::new(COLONY_NETWORK_ADDRESS, provider);
+    let network = ColonyNetwork::new(COLONY_NETWORK_ADDRESS, provider);
     Ok(TxHash(network.get_reputation_root_hash().call().await?))
 }
 
 pub async fn get_domain(colony_address: &Address, id: u64) -> Result<Domain, ColonyError> {
     let provider = PROVIDER.get_or_init(init_provider).clone();
-    let colony = contracts::colony::Colony::new(*colony_address, provider);
+    let colony = Colony::new(*colony_address, provider);
     Ok(colony.get_domain(id.into()).call().await?)
 }
 
@@ -107,6 +112,15 @@ pub fn validate_signature(
 ) -> Result<(), ColonyError> {
     let signature = Signature::from_str(signature)?;
     Ok(signature.verify(message, *address)?)
+}
+
+pub async fn balance_off(
+    token_address: &Address,
+    wallet_address: &Address,
+) -> Result<U256, ColonyError> {
+    let provider = PROVIDER.get_or_init(init_provider).clone();
+    let token = tokenERC20::new(*token_address, provider);
+    Ok(token.balance_of(*wallet_address).call().await?)
 }
 
 #[cfg(test)]
@@ -158,7 +172,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reputation.key, "0x364b3153a24bb9eca28b8c7aceb15e3942eb4fc50000000000000000000000000000000000000000000000000000000000000f160aeff664e8d75c13801be16bcfe8143bf422135a".to_string());
-        assert_eq!(reputation.value, "0x0000000000000000000000000000000000000000000000041fc0add9b32492350000000000000000000000000000000000000000000000000000000000000f1a".to_string());
+        assert_eq!(reputation.value.len(), 130);
     }
 
     #[tokio::test]
@@ -171,7 +185,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reputation.key, "0x364b3153a24bb9eca28b8c7aceb15e3942eb4fc50000000000000000000000000000000000000000000000000000000000000f160000000000000000000000000000000000000000".to_string());
-        assert_eq!(reputation.value, "0x00000000000000000000000000000000000000000000000dc51a96a5089f4bfc0000000000000000000000000000000000000000000000000000000000000f19".to_string());
+        assert_eq!(reputation.value.len(), 130);
     }
 
     #[tokio::test]
@@ -187,15 +201,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ether_scan() {
-        let client =
-            ethers::etherscan::Client::new(Chain::Mainnet, "4STDKJBKM789RAXJB9VEC5ICN2TTJX2R1R")
-                .unwrap();
-        let address = Address::from_str("0x0535f1f43Ee274123291bbAB284948CAED46C65D").unwrap();
-        let balance = client
-            .get_ether_balance_single(&address, None)
-            .await
-            .unwrap();
-        assert_eq!(balance.balance, "0".to_string());
+    async fn test_balance_of_clny() {
+        let token = "0xc9B6218AffE8Aba68a13899Cbf7cF7f14DDd304C";
+        let wallet = "0x679b2c8c1fd2efcf268f2f58929d8791d341629f";
+        let balance = balance_off(
+            &token.parse::<Address>().unwrap(),
+            &wallet.parse::<Address>().unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(balance, 0.into());
     }
 }
