@@ -138,9 +138,23 @@ pub async fn get_token_symbol(token_address: Address) -> Result<String, ColonyEr
     Ok(token.symbol().call().await?)
 }
 
+pub async fn get_token_decimals(token_address: Address) -> Result<u8, ColonyError> {
+    let provider = PROVIDER.get_or_init(init_provider).clone();
+    let token = tokenERC20::new(token_address, provider);
+    Ok(token.decimals().call().await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn test_token_decimals_lookup() {
+        let token_address = "0xc9B6218AffE8Aba68a13899Cbf7cF7f14DDd304C"
+            .parse::<Address>()
+            .unwrap();
+        let symbol = get_token_decimals(token_address).await.unwrap();
+        assert_eq!(symbol, 18);
+    }
 
     #[tokio::test]
     async fn test_colony_name_lookup() {
