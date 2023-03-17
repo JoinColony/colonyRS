@@ -123,9 +123,42 @@ pub async fn balance_off(
     Ok(token.balance_of(*wallet_address).call().await?)
 }
 
+pub async fn get_colony_name(colony_address: Address) -> Result<String, ColonyError> {
+    let provider = PROVIDER.get_or_init(init_provider).clone();
+    let network = ColonyNetwork::new(COLONY_NETWORK_ADDRESS, provider);
+    Ok(network
+        .lookup_registered_ens_domain(colony_address)
+        .call()
+        .await?)
+}
+
+pub async fn get_token_symbol(token_address: Address) -> Result<String, ColonyError> {
+    let provider = PROVIDER.get_or_init(init_provider).clone();
+    let token = tokenERC20::new(token_address, provider);
+    Ok(token.symbol().call().await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_colony_name_lookup() {
+        let colony_address = "0xCFD3aa1EbC6119D80Ed47955a87A9d9C281A97B3"
+            .parse::<Address>()
+            .unwrap();
+        let name = get_colony_name(colony_address).await.unwrap();
+        assert_eq!(name, "meta.colony.joincolony.colonyxdai");
+    }
+
+    #[tokio::test]
+    async fn test_token_symbol_lookup() {
+        let token_address = "0xc9B6218AffE8Aba68a13899Cbf7cF7f14DDd304C"
+            .parse::<Address>()
+            .unwrap();
+        let symbol = get_token_symbol(token_address).await.unwrap();
+        assert_eq!(symbol, "CLNY");
+    }
 
     #[test]
     fn test_validate_message() {
@@ -210,6 +243,6 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(balance, 0.into());
+        assert_eq!(balance.to_string(), "5148231093628244096839118");
     }
 }
