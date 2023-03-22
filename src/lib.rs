@@ -87,6 +87,12 @@ pub async fn get_domain(colony_address: &Address, id: u64) -> Result<Domain, Col
     Ok(colony.get_domain(id.into()).call().await?)
 }
 
+pub async fn get_domain_count(colony_address: Address) -> Result<u64, ColonyError> {
+    let provider = PROVIDER.get_or_init(init_provider).clone();
+    let colony = Colony::new(colony_address, provider);
+    Ok(colony.get_domain_count().call().await?.as_u64())
+}
+
 pub async fn get_reputation_in_domain(
     colony_address: &Address,
     user_address: &Address,
@@ -132,6 +138,12 @@ pub async fn get_colony_name(colony_address: Address) -> Result<String, ColonyEr
         .await?)
 }
 
+pub async fn get_token_total_supply(token_address: Address) -> Result<U256, ColonyError> {
+    let provider = PROVIDER.get_or_init(init_provider).clone();
+    let token = tokenERC20::new(token_address, provider);
+    Ok(token.total_supply().call().await?)
+}
+
 pub async fn get_token_symbol(token_address: Address) -> Result<String, ColonyError> {
     let provider = PROVIDER.get_or_init(init_provider).clone();
     let token = tokenERC20::new(token_address, provider);
@@ -148,6 +160,14 @@ pub async fn get_token_decimals(token_address: Address) -> Result<u8, ColonyErro
 mod tests {
     use super::*;
     #[tokio::test]
+    async fn test_token_total_supply() {
+        let token_address = "0xc9B6218AffE8Aba68a13899Cbf7cF7f14DDd304C"
+            .parse::<Address>()
+            .unwrap();
+        let supply = get_token_total_supply(token_address).await.unwrap();
+        assert_eq!(supply, U256::from(18));
+    }
+    #[tokio::test]
     async fn test_token_decimals_lookup() {
         let token_address = "0xc9B6218AffE8Aba68a13899Cbf7cF7f14DDd304C"
             .parse::<Address>()
@@ -163,6 +183,15 @@ mod tests {
             .unwrap();
         let name = get_colony_name(colony_address).await.unwrap();
         assert_eq!(name, "meta.colony.joincolony.colonyxdai");
+    }
+
+    #[tokio::test]
+    async fn test_domain_count_lookup() {
+        let colony_address = "0xCFD3aa1EbC6119D80Ed47955a87A9d9C281A97B3"
+            .parse::<Address>()
+            .unwrap();
+        let name = get_domain_count(colony_address).await.unwrap();
+        assert_eq!(name, 8);
     }
 
     #[tokio::test]
