@@ -2,19 +2,19 @@
 name = "colony-rs"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Colony Smart Contract bindings for Rust"
+license = "GPL-3.0-only"
 
 [dependencies]
-ethers = "1.0.2"
-once_cell = "1.17.0"
-reqwest = { version = "0.11.14", features = ["json", "rustls-tls", "trust-dns", "trust-dns-resolver"] }
-serde = "1.0.152"
-serde_json = "1.0.93"
-thiserror = "1.0.38"
-tokio = { version = "1.25.0", features = ["rt-multi-thread", "rt", "macros"] }
-url = "2.3.1"
+ethers = "1"
+once_cell = "1"
+reqwest = { version = "0.11", features = ["json", "rustls-tls", "trust-dns", "trust-dns-resolver"] }
+serde = "1"
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "rt", "macros"] }
+url = "2"
 
 [build-dependencies]
-ethers = "1.0.2"
-eyre = "0.6.8"
+ethers = "1"
+eyre = "0.6"
